@@ -19,7 +19,7 @@ import librosa
 import wave
 import pandas as pd
 from keras.models import model_from_json
-
+import csv
 FORMAT = pyaudio.paInt16
 CHANNELS = 1
 RATE = 44100
@@ -86,7 +86,7 @@ def is_consistent_loudness(audio_mfccs: np.ndarray) -> bool:
     loudness_threshold = 0.1
     energy_std = np.std(frame_energy)
     is_consistent_loudness = energy_std < (loudness_threshold * np.mean(frame_energy))
-    return is_consistent_loudness
+    return is_consistent_loudness, frame_energy
 
 
 def is_consistent_pitch(audio_pitch: np.ndarray) -> bool:
@@ -101,7 +101,7 @@ def is_consistent_pitch(audio_pitch: np.ndarray) -> bool:
     """
     pitch_variation = np.std(audio_pitch)
     pitch_threshold = 10.0
-    return pitch_variation < pitch_threshold
+    return (pitch_variation < pitch_threshold), pitch_variation
 
 
 def load_and_compile_voice_model() -> keras.models.Model:
@@ -210,7 +210,12 @@ vs = VideoStream(0).start()
 time.sleep(2.0)
 
 labels = ["happy", "neutral", "sad"]
+fieldnames = ['x', 'pitch', 'loudness']
 
+with open('live_data.csv', 'w') as csv_file:
+    print("creating csv file")
+    csv_writer = csv.DictWriter(csv_file, fieldnames=fieldnames)
+    csv_writer.writeheader()
 counter = 0
 while True:
     frame = vs.read()
@@ -222,32 +227,43 @@ while True:
     if counter % 20 == 0:
         audio = take_mic_input()
         audio_emotion = predict_emotion_from_audio(audio, audio_model)
-        pitch = is_consistent_pitch(audio)
-        loudness = is_consistent_loudness(audio)
-        print("is consistent pitch", pitch)
-        print("is consistent loudness", loudness)
+        check_pitch, pitch = is_consistent_pitch(audio)
+        check_loudness, loudness = is_consistent_loudness(audio)
+        print("is consistent pitch", check_pitch)
+        print("is consistent loudness", check_loudness)
+        with open('live_data.csv', 'a') as csv_file:
+            csv_writer = csv.DictWriter(csv_file, fieldnames=fieldnames)
+
+            info = {
+                "x": counter,
+                "pitch": pitch,
+                "loudness": loudness
+            }
+
+            csv_writer.writerow(info)
+        
     for (box, pred) in zip(locs, preds):
         (startX, startY, endX, endY) = box
         label = str(labels[np.argmax(pred)])
         if label == "happy":
-            cv2.putText(original_frame, label, (startX, startY - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.45, (0, 200, 50), 2)
+            cv2.putText(original_frame, label, (startX, startY - 10), cv2.FONT_HERSHEY_DUPLEX, 0.65, (0, 200, 50), 2)
             cv2.rectangle(original_frame, (startX, startY), (endX, endY), (0, 200, 50), 2)
-            cv2.putText(original_frame, f"Voice: {audio_emotion}", (20, 35), cv2.FONT_HERSHEY_SIMPLEX, 0.45, (0, 0, 0), 2)
-            cv2.putText(original_frame, f"Is consistent pitch: {pitch}", (20, 50), cv2.FONT_HERSHEY_SIMPLEX, 0.45, (0, 0, 0), 2)
-            cv2.putText(original_frame, f"Is consistent loudness: {loudness}", (20, 65), cv2.FONT_HERSHEY_SIMPLEX, 0.45, (0, 0, 0), 2)
+            cv2.putText(original_frame, f"Voice: {audio_emotion}", (20, 35), cv2.FONT_HERSHEY_DUPLEX, 0.65, (0, 0, 0), 2)
+            cv2.putText(original_frame, f"Is consistent pitch: {check_pitch}", (20, 50), cv2.FONT_HERSHEY_DUPLEX, 0.65, (0, 0, 0), 2)
+            cv2.putText(original_frame, f"Is consistent loudness: {check_loudness}", (20, 65), cv2.FONT_HERSHEY_DUPLEX, 0.65, (0, 0, 0), 2)
         elif label == "neutral":
-            cv2.putText(original_frame, label, (startX, startY - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.45, (255, 255, 255), 2)
+            cv2.putText(original_frame, label, (startX, startY - 10), cv2.FONT_HERSHEY_DUPLEX, 0.65, (255, 255, 255), 2)
             cv2.rectangle(original_frame, (startX, startY), (endX, endY), (255, 255, 255), 2)
-            cv2.putText(original_frame, f"Voice: {audio_emotion}", (20, 35), cv2.FONT_HERSHEY_SIMPLEX, 0.45, (0, 0, 0), 2)
-            cv2.putText(original_frame, f"Is consistent pitch: {pitch}", (20, 50), cv2.FONT_HERSHEY_SIMPLEX, 0.45, (0, 0, 0), 2)
-            cv2.putText(original_frame, f"Is consistent loudness: {loudness}", (20, 65), cv2.FONT_HERSHEY_SIMPLEX, 0.45, (0, 0, 0), 2)
+            cv2.putText(original_frame, f"Voice: {audio_emotion}", (20, 35), cv2.FONT_HERSHEY_DUPLEX, 0.65, (0, 0, 0), 2)
+            cv2.putText(original_frame, f"Is consistent pitch: {check_pitch}", (20, 50), cv2.FONT_HERSHEY_DUPLEX, 0.65, (0, 0, 0), 2)
+            cv2.putText(original_frame, f"Is consistent loudness: {check_loudness}", (20, 65), cv2.FONT_HERSHEY_DUPLEX, 0.65, (0, 0, 0), 2)
 
         elif label == "sad":
-            cv2.putText(original_frame, label, (startX, startY - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.45, (0, 50, 200), 2)
+            cv2.putText(original_frame, label, (startX, startY - 10), cv2.FONT_HERSHEY_DUPLEX, 0.65, (0, 50, 200), 2)
             cv2.rectangle(original_frame, (startX, startY), (endX, endY), (0, 50, 200), 2)
-            cv2.putText(original_frame, f"Voice: {audio_emotion}", (20, 35), cv2.FONT_HERSHEY_SIMPLEX, 0.45, (0, 0, 0), 2)
-            cv2.putText(original_frame, f"Is consistent pitch: {pitch}", (20, 50), cv2.FONT_HERSHEY_SIMPLEX, 0.45, (0, 0, 0), 2)
-            cv2.putText(original_frame, f"Is consistent loudness: {loudness}", (20, 65), cv2.FONT_HERSHEY_SIMPLEX, 0.45, (0, 0, 0), 2)
+            cv2.putText(original_frame, f"Voice: {audio_emotion}", (20, 35), cv2.FONT_HERSHEY_DUPLEX, 0.65, (0, 0, 0), 2)
+            cv2.putText(original_frame, f"Is consistent pitch: {check_pitch}", (20, 50), cv2.FONT_HERSHEY_DUPLEX, 0.65, (0, 0, 0), 2)
+            cv2.putText(original_frame, f"Is consistent loudness: {check_loudness}", (20, 65), cv2.FONT_HERSHEY_DUPLEX, 0.65, (0, 0, 0), 2)
 
 
     frame = cv2.resize(original_frame, (860, 490))
