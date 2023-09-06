@@ -43,4 +43,4 @@ To get started with **Speech Master** clone this repository:
 - Real-time facial expression analysis with OpenCV.
 - Live audio analysis and feature extraction using PyAudio, wave, and librosa.
 - Pretrained models for sentiment analysis and voice emotion detection.
-- Integration of Mel-frequency Cepstral Coefficients (MFCC) for live audio visualization.
+- Integration of Mel-frequency Cepstral Coefficients (MFCC) for live audio visualization
